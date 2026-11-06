@@ -138,6 +138,10 @@ Colours are CSS custom properties on `:root` (defaults = the built-in dark theme
 - **GitLab Pages (internal):** `.gitlab-ci.yml` publishes `docs/index.html` on every push to the default branch. Set Pages access to project members under Settings → General → Visibility.
 - Tag releases (`git tag v1.0.0`) and attach `dist/ChatViewer_Single.html` to the release.
 
+## Making changes
+
+See [AGENTS.md](AGENTS.md) for the change workflow, build and verification steps, and how to publish to GitLab and GitHub (written for both people and AI assistants).
+
 ## License
 
 MIT © 2026 Johnny Heng. See [LICENSE](LICENSE).
