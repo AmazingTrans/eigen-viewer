@@ -1,0 +1,13 @@
+# Optional: publishes the single-file viewer with GitLab Pages.
+# Remove this file if you do not want a hosted copy.
+pages:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - mkdir -p public
+    - cp dist/ChatViewer_Single.html public/index.html
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

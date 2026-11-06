@@ -1,0 +1,9 @@
+# Chat exports can contain project paths, code and customer data - never commit them
+exports/
+*.txt
+!requirements.txt
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
