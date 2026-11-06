@@ -23,8 +23,10 @@ eigen-chat-viewer/
 │   └── themes.js              # Theme definitions (window.THEMES)
 ├── dist/
 │   └── ChatViewer_Single.html # Generated: themes.js inlined, one shareable file
+├── docs/
+│   └── index.html             # Generated copy of the single file, served by GitHub Pages
 ├── scripts/
-│   └── build-single.ps1       # Builds dist/ from src/
+│   └── build-single.ps1       # Builds dist/ and docs/ from src/
 ├── .gitlab-ci.yml             # Optional: publish dist/ via GitLab Pages
 ├── CHANGELOG.md
 ├── LICENSE
@@ -56,7 +58,7 @@ eigen-chat-viewer/
 pwsh ./scripts/build-single.ps1     # or: powershell -File .\scripts\build-single.ps1
 ```
 
-The script replaces the `<script src="themes.js"></script>` placeholder in `src/ChatViewer.html` with the inlined contents of `src/themes.js` and writes `dist/ChatViewer_Single.html`. Do not edit the `dist/` file by hand.
+The script replaces the `<script src="themes.js"></script>` placeholder in `src/ChatViewer.html` with the inlined contents of `src/themes.js`, writes `dist/ChatViewer_Single.html`, and copies it to `docs/index.html` (the page GitHub Pages serves: set Pages to branch `main`, folder `/docs`). Do not edit the generated files by hand.
 
 ## How it works
 

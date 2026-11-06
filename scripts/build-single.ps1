@@ -18,3 +18,9 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 $target = Join-Path $dist 'ChatViewer_Single.html'
 [IO.File]::WriteAllText($target, $out, (New-Object Text.UTF8Encoding $false))
 Write-Host "Built $target"
+
+# GitHub Pages serves docs/index.html
+$docs = Join-Path $root 'docs'
+New-Item -ItemType Directory -Force $docs | Out-Null
+Copy-Item $target (Join-Path $docs 'index.html') -Force
+Write-Host "Copied to $docs\index.html"

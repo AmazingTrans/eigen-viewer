@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<!--
+================================================================================
+ Eigen Chat Viewer
+================================================================================
+ Description : Single-file, offline viewer that renders exported Eigen Engineering
+               Agent chat sessions (.txt) as a readable conversation: Markdown
+               formatting, SCL syntax highlighting, copyable code blocks,
+               collapsible tool activity, and selectable themes.
+ Version     : 1.0.0
+ Files       : ChatViewer.html (application), themes.js (theme definitions)
+ Usage       : Open ChatViewer.html in a modern browser, then drop an exported
+               .txt file onto the page or use "Open .txt". All processing is
+               local; no data leaves your machine and no network access is used.
+ Author      : Johnny Heng
+ Authorship  : Created with AI assistance (GitHub Copilot CLI). Generated code
+               has not been independently audited.
+ License     : Open source, released under the MIT License. Free to use, copy,
+               modify, and distribute, provided this notice is retained.
+ Disclaimer  : PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+               IMPLIED. USE AT YOUR OWN RISK. The authors accept no liability
+               for any damages arising from its use.
+ Support     : No maintenance, updates, or support are provided or implied.
+               Forks and modifications are welcome.
+ Compat.     : Parses the Eigen export layout as of application version 1.5.x.
+               Future export format changes may break parsing.
+================================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eigen Chat Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#14161a;--panel:#1b1e24;--border:#2c313a;--text:#d4d7dd;--muted:#7d8591;--accent:#4da3ff;--gold:#d9a441;--code:#101216;--user-bg:#1a2230;--user-border:#28364d;--heading:#e6e8ec;--btn:#242933;--pre-text:#d4d4d4;--rail:#5a4a20;--asst:#6fd08c;--tk:#569cd6;--tc:#6a9955;--ts:#ce9178;--tn:#b5cea8;--tt:#4ec9b0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 "Segoe UI",system-ui,sans-serif}
+header.top{position:sticky;top:0;z-index:10;display:flex;gap:12px;align-items:center;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--border)}
+header.top .title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+header.top .spacer{flex:1}
+button,label.btn,select{background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 12px;cursor:pointer;font:inherit;font-size:13px}
+button:hover,label.btn:hover{border-color:var(--accent)}
+label.chk{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px;cursor:pointer}
+#drop{margin:15vh auto;max-width:560px;text-align:center;padding:48px 24px;border:2px dashed var(--border);border-radius:12px;color:var(--muted)}
+#drop.over{border-color:var(--accent);color:var(--accent)}
+#drop h2{color:var(--text);margin-top:0}
+#chat{max-width:1100px;margin:0 auto;padding:16px 24px 80px;border-left:2px dashed var(--rail);margin-left:max(24px,calc((100vw - 1100px)/2))}
+.meta{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin:12px 0 20px;font-size:13px}
+.meta h1{margin:0 0 6px;font-size:20px}
+.meta div span{color:var(--muted);display:inline-block;min-width:130px}
+.msg{padding:14px 0;border-bottom:1px solid var(--border)}
+.msg .ts{color:var(--muted);font-size:12px;margin-bottom:6px}
+.msg.user{background:var(--user-bg);border:1px solid var(--user-border);border-radius:8px;padding:12px 16px;margin:14px 0}
+.msg.user .ts::before{content:"You  ·  ";color:var(--accent);font-weight:600}
+.msg.assistant .ts::before{content:"Assistant  ·  ";color:var(--asst);font-weight:600}
+.msg.assistant .ts{cursor:pointer;user-select:none;display:flex;gap:6px;align-items:baseline}
+.msg.assistant .ts::after{content:"▾";order:-1;color:var(--gold)}
+.msg.assistant.collapsed .ts::after{content:"▸"}
+.msg.assistant .ts .pv{color:var(--muted);font-weight:400;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:none;flex:1}
+.msg.assistant.collapsed .toolgroup{display:none}
+details.toolgroup{margin:8px 0 8px 14px;border-left:2px solid var(--rail);padding-left:10px}
+details.toolgroup>summary{cursor:pointer;font-size:12.5px;color:var(--muted);padding:2px 0}
+details.toolgroup>summary b{color:var(--gold)}
+details.toolgroup .inner{margin-top:4px}
+.userText{white-space:pre-wrap;word-wrap:break-word}
+.md h1,.md h2,.md h3,.md h4{line-height:1.3;margin:1.2em 0 .5em;font-weight:600;color:var(--heading)}
+.md h1{font-size:1.7em}.md h2{font-size:1.45em}.md h3{font-size:1.2em}.md h4{font-size:1.05em}
+.md p{margin:.6em 0}
+.md ul,.md ol{padding-left:1.6em;margin:.5em 0}
+.md li{margin:.2em 0}
+.md hr{border:0;border-top:1px solid var(--border);margin:1.2em 0}
+.md blockquote{margin:.6em 0;padding:2px 14px;border-left:3px solid var(--border);color:var(--muted)}
+.md a{color:var(--accent)}
+.md code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--code);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.md table{border-collapse:collapse;margin:.8em 0;display:block;overflow-x:auto}
+.md th,.md td{border:1px solid var(--border);padding:5px 10px;text-align:left;vertical-align:top}
+.md th{background:var(--panel)}
+.codeblock{border:1px solid var(--border);border-radius:6px;margin:.8em 0;background:var(--code);overflow:hidden}
+.codeblock .bar{display:flex;justify-content:space-between;align-items:center;padding:4px 10px;border-bottom:1px solid var(--border);background:var(--panel);font-weight:600;font-size:13px}
+.codeblock pre{margin:0;padding:10px 12px;overflow-x:auto;font:12.5px/1.5 Consolas,"Cascadia Mono",monospace;color:var(--pre-text);tab-size:4}
+.codeblock pre code{background:none;border:0;padding:0;font:inherit}
+.k{color:var(--tk)}.c{color:var(--tc);font-style:italic}.s{color:var(--ts)}.n{color:var(--tn)}.t{color:var(--tt)}
+details.tool{margin:8px 0;border:1px solid var(--border);border-radius:6px;background:var(--panel)}
+details.tool>summary{cursor:pointer;padding:5px 10px;font-size:12.5px;color:var(--muted);list-style:none}
+details.tool>summary::before{content:"▸ ";color:var(--gold)}
+details.tool[open]>summary::before{content:"▾ "}
+details.tool>summary b{color:var(--gold);font-weight:600}
+details.tool pre{margin:0;padding:8px 12px;max-height:420px;overflow:auto;border-top:1px solid var(--border);background:var(--code);font:12px/1.45 Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+body.hideTools details.toolgroup{display:none}
+.empty{color:var(--muted);text-align:center;padding:40px}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="title" id="title">Eigen Chat Viewer</span>
+  <span class="spacer"></span>
+  <select id="theme" title="Theme"></select>
+  <label class="chk"><input type="checkbox" id="showTools" checked> Tool activity</label>
+  <button id="expandReplies">Show tools</button>
+  <button id="collapseReplies">Hide tools</button>
+  <button id="expand">Expand tools</button>
+  <button id="collapse">Collapse tools</button>
+  <label class="btn">Open .txt<input type="file" id="file" accept=".txt,text/plain" hidden></label>
+</header>
+
+<div id="drop"><h2>Drop an exported chat .txt here</h2><p>or click “Open .txt” above. Files are read locally; nothing is uploaded.</p></div>
+<main id="chat" hidden></main>
+
+<script>
+/*
+ * ============================================================================
+ *  Eigen Chat Viewer - Theme Definitions
+ * ============================================================================
+ *  Version     : 1.0.0
+ *  Description : Color themes for ChatViewer.html. Kept separate so themes can
+ *                be added or edited without touching the application code.
+ *  Author      : Johnny Heng
+ *  Authorship  : Created with AI assistance (GitHub Copilot CLI).
+ *  License     : Open source, MIT License.
+ *  Disclaimer  : PROVIDED "AS IS", WITHOUT WARRANTY. USE AT YOUR OWN RISK.
+ *                No maintenance or support is provided.
+ * ============================================================================
+ *
+ * To add a theme, copy an entry and change the values. Any variable you omit
+ * falls back to the default (Eigen Dark) value defined in ChatViewer.html.
+ *
+ * Variables:
+ *  bg, panel, border, text, muted, accent, gold (tool accent), code (code bg),
+ *  user-bg, user-border (your messages), heading, btn (buttons), pre-text,
+ *  rail (left guide lines), asst (assistant label),
+ *  tk keyword, tc comment, ts string, tn number, tt type  (code highlighting)
+ */
+function T(id, name, group, v) {
+  const vars = {};
+  for (const k in v) vars["--" + k] = v[k];
+  return { id, name, group, vars };
+}
+
+window.THEMES = [
+  T("eigen-dark", "Eigen Dark (default)", "Default", {}),
+
+  // Approximated from the Eigen app screenshot (eigenColor.png)
+  T("eigen-color", "Eigen Color", "Default", {
+    bg: "#12151c", panel: "#252938", border: "#323747", text: "#c6c9d2", muted: "#7b8190",
+    accent: "#4da3ff", gold: "#d9a441", code: "#0a0c11", "user-bg": "#1a2030", "user-border": "#2c3650",
+    heading: "#d3d6de", btn: "#1e2230", "pre-text": "#d4d7dd", rail: "#1f5a4f", asst: "#4fb6a0",
+    tk: "#3f9bf0", tc: "#5a9f4f", ts: "#d1966b", tn: "#b5cea8", tt: "#7fc4f5"
+  }),
+
+  // ---- Popular VS Code themes ----
+  T("dark-plus", "VS Code Dark+", "VS Code", {
+    bg: "#1e1e1e", panel: "#252526", border: "#3c3c3c", text: "#d4d4d4", muted: "#858585",
+    accent: "#3794ff", gold: "#dcdcaa", code: "#1e1e1e", "user-bg": "#04395e", "user-border": "#0e639c",
+    heading: "#ffffff", btn: "#333333", "pre-text": "#d4d4d4", rail: "#007acc", asst: "#4ec9b0",
+    tk: "#569cd6", tc: "#6a9955", ts: "#ce9178", tn: "#b5cea8", tt: "#4ec9b0"
+  }),
+  T("light-plus", "VS Code Light+", "VS Code", {
+    bg: "#ffffff", panel: "#f3f3f3", border: "#d4d4d4", text: "#333333", muted: "#767676",
+    accent: "#0066bf", gold: "#795e26", code: "#f8f8f8", "user-bg": "#e8f1fb", "user-border": "#b6d4f2",
+    heading: "#000000", btn: "#ececec", "pre-text": "#000000", rail: "#a0a0a0", asst: "#267f99",
+    tk: "#0000ff", tc: "#008000", ts: "#a31515", tn: "#098658", tt: "#267f99"
+  }),
+  T("monokai", "Monokai", "VS Code", {
+    bg: "#272822", panel: "#1e1f1c", border: "#3e3d32", text: "#f8f8f2", muted: "#90908a",
+    accent: "#66d9ef", gold: "#e6db74", code: "#1e1f1c", "user-bg": "#3e3d32", "user-border": "#75715e",
+    heading: "#f8f8f2", btn: "#3e3d32", "pre-text": "#f8f8f2", rail: "#75715e", asst: "#a6e22e",
+    tk: "#f92672", tc: "#75715e", ts: "#e6db74", tn: "#ae81ff", tt: "#66d9ef"
+  }),
+  T("dracula", "Dracula", "VS Code", {
+    bg: "#282a36", panel: "#21222c", border: "#44475a", text: "#f8f8f2", muted: "#6272a4",
+    accent: "#8be9fd", gold: "#f1fa8c", code: "#1e1f29", "user-bg": "#343746", "user-border": "#6272a4",
+    heading: "#f8f8f2", btn: "#343746", "pre-text": "#f8f8f2", rail: "#6272a4", asst: "#50fa7b",
+    tk: "#ff79c6", tc: "#6272a4", ts: "#f1fa8c", tn: "#bd93f9", tt: "#8be9fd"
+  }),
+  T("one-dark", "One Dark Pro", "VS Code", {
+    bg: "#282c34", panel: "#21252b", border: "#3b4048", text: "#abb2bf", muted: "#7f848e",
+    accent: "#61afef", gold: "#e5c07b", code: "#21252b", "user-bg": "#2c313c", "user-border": "#3e4451",
+    heading: "#e6e6e6", btn: "#2c313a", "pre-text": "#abb2bf", rail: "#4b5263", asst: "#98c379",
+    tk: "#c678dd", tc: "#5c6370", ts: "#98c379", tn: "#d19a66", tt: "#e5c07b"
+  }),
+  T("github-dark", "GitHub Dark", "VS Code", {
+    bg: "#0d1117", panel: "#161b22", border: "#30363d", text: "#c9d1d9", muted: "#8b949e",
+    accent: "#58a6ff", gold: "#d29922", code: "#010409", "user-bg": "#122033", "user-border": "#1f4a7a",
+    heading: "#f0f6fc", btn: "#21262d", "pre-text": "#c9d1d9", rail: "#30363d", asst: "#3fb950",
+    tk: "#ff7b72", tc: "#8b949e", ts: "#a5d6ff", tn: "#79c0ff", tt: "#ffa657"
+  }),
+  T("github-light", "GitHub Light", "VS Code", {
+    bg: "#ffffff", panel: "#f6f8fa", border: "#d0d7de", text: "#24292f", muted: "#6e7781",
+    accent: "#0969da", gold: "#9a6700", code: "#f6f8fa", "user-bg": "#ddf4ff", "user-border": "#a5d6ff",
+    heading: "#1f2328", btn: "#f3f4f6", "pre-text": "#24292f", rail: "#d0d7de", asst: "#1a7f37",
+    tk: "#cf222e", tc: "#6e7781", ts: "#0a3069", tn: "#0550ae", tt: "#953800"
+  }),
+  T("solarized-dark", "Solarized Dark", "VS Code", {
+    bg: "#002b36", panel: "#073642", border: "#0e4a58", text: "#93a1a1", muted: "#657b83",
+    accent: "#268bd2", gold: "#b58900", code: "#00232c", "user-bg": "#06404e", "user-border": "#1b6a7d",
+    heading: "#eee8d5", btn: "#0a4150", "pre-text": "#93a1a1", rail: "#586e75", asst: "#859900",
+    tk: "#859900", tc: "#586e75", ts: "#2aa198", tn: "#d33682", tt: "#b58900"
+  }),
+  T("solarized-light", "Solarized Light", "VS Code", {
+    bg: "#fdf6e3", panel: "#eee8d5", border: "#d8d0b8", text: "#586e75", muted: "#93a1a1",
+    accent: "#268bd2", gold: "#b58900", code: "#f5eed8", "user-bg": "#e4eef0", "user-border": "#b6cfd3",
+    heading: "#073642", btn: "#e8e1ca", "pre-text": "#586e75", rail: "#b8b098", asst: "#859900",
+    tk: "#859900", tc: "#93a1a1", ts: "#2aa198", tn: "#d33682", tt: "#b58900"
+  }),
+  T("nord", "Nord", "VS Code", {
+    bg: "#2e3440", panel: "#3b4252", border: "#4c566a", text: "#d8dee9", muted: "#8f9bb3",
+    accent: "#88c0d0", gold: "#ebcb8b", code: "#272c36", "user-bg": "#36415a", "user-border": "#5e81ac",
+    heading: "#eceff4", btn: "#434c5e", "pre-text": "#d8dee9", rail: "#4c566a", asst: "#a3be8c",
+    tk: "#81a1c1", tc: "#616e88", ts: "#a3be8c", tn: "#b48ead", tt: "#8fbcbb"
+  }),
+  T("tokyo-night", "Tokyo Night", "VS Code", {
+    bg: "#1a1b26", panel: "#16161e", border: "#2f334d", text: "#a9b1d6", muted: "#565f89",
+    accent: "#7aa2f7", gold: "#e0af68", code: "#14141b", "user-bg": "#24283b", "user-border": "#3d59a1",
+    heading: "#c0caf5", btn: "#292e42", "pre-text": "#a9b1d6", rail: "#3b4261", asst: "#9ece6a",
+    tk: "#bb9af7", tc: "#565f89", ts: "#9ece6a", tn: "#ff9e64", tt: "#2ac3de"
+  }),
+  T("night-owl", "Night Owl", "VS Code", {
+    bg: "#011627", panel: "#01111d", border: "#122d42", text: "#d6deeb", muted: "#637777",
+    accent: "#82aaff", gold: "#ecc48d", code: "#010e1a", "user-bg": "#0b2942", "user-border": "#234d70",
+    heading: "#ffffff", btn: "#0b2942", "pre-text": "#d6deeb", rail: "#5f7e97", asst: "#addb67",
+    tk: "#c792ea", tc: "#637777", ts: "#ecc48d", tn: "#f78c6c", tt: "#ffcb8b"
+  }),
+
+  // ---- Cute & playful ----
+  T("bubblegum", "Bubblegum Pop", "Cute", {
+    bg: "#fff0f7", panel: "#ffe0ef", border: "#ffb6d5", text: "#5a2a45", muted: "#b0719a",
+    accent: "#ff4fa3", gold: "#e67e22", code: "#fff8fc", "user-bg": "#ffd6ea", "user-border": "#ff9ccb",
+    heading: "#b0126b", btn: "#ffd0e6", "pre-text": "#4a2a3d", rail: "#ff9ccb", asst: "#12a89a",
+    tk: "#d6249f", tc: "#a68aa0", ts: "#e0603a", tn: "#7b4fd6", tt: "#12a89a"
+  }),
+  T("cotton-candy", "Cotton Candy", "Cute", {
+    bg: "#f1f7ff", panel: "#e4eeff", border: "#c9d9ff", text: "#3b3f6b", muted: "#8a90c0",
+    accent: "#8a7bff", gold: "#f29ac2", code: "#faf8ff", "user-bg": "#e9e2ff", "user-border": "#c5b8ff",
+    heading: "#5a45c9", btn: "#e0e6ff", "pre-text": "#3b3f6b", rail: "#c5b8ff", asst: "#35b6a2",
+    tk: "#8a5cf5", tc: "#a0a6d0", ts: "#e8689f", tn: "#2f8fe0", tt: "#35b6a2"
+  }),
+  T("matcha", "Matcha Latte", "Cute", {
+    bg: "#f3f6e8", panel: "#e6edd2", border: "#cbd8a8", text: "#3f4a2c", muted: "#8a9a66",
+    accent: "#6a9e2f", gold: "#b8862b", code: "#fafcf2", "user-bg": "#dfe9c2", "user-border": "#b4c985",
+    heading: "#2f3d17", btn: "#dde7c0", "pre-text": "#33401f", rail: "#b4c985", asst: "#3b8f5c",
+    tk: "#2f7d32", tc: "#95a37a", ts: "#b0553a", tn: "#8a5aa8", tt: "#2a7f8e"
+  }),
+  T("sunset-peach", "Peachy Sunset", "Cute", {
+    bg: "#2b1a2f", panel: "#38223c", border: "#5a3560", text: "#ffe3d3", muted: "#c79aa8",
+    accent: "#ff9a76", gold: "#ffd166", code: "#241528", "user-bg": "#4a2a52", "user-border": "#8a4f8f",
+    heading: "#fff1e8", btn: "#472a4c", "pre-text": "#ffe3d3", rail: "#8a4f8f", asst: "#7fe0b8",
+    tk: "#ff7eb6", tc: "#a982a0", ts: "#ffd166", tn: "#b69cff", tt: "#7fe0b8"
+  }),
+  T("midnight-kitty", "Midnight Kitty", "Cute", {
+    bg: "#1b1624", panel: "#251d33", border: "#41335a", text: "#e8dff5", muted: "#9c8fb5",
+    accent: "#ffb3d9", gold: "#ffe08a", code: "#15111d", "user-bg": "#34264b", "user-border": "#6a4f9a",
+    heading: "#fff0fa", btn: "#2f2542", "pre-text": "#e8dff5", rail: "#6a4f9a", asst: "#a8f0d0",
+    tk: "#ff8fc7", tc: "#7f7299", ts: "#ffe08a", tn: "#9ad1ff", tt: "#a8f0d0"
+  }),
+  T("ocean-puffin", "Ocean Puffin", "Cute", {
+    bg: "#0f2a3a", panel: "#143648", border: "#235069", text: "#dff3fb", muted: "#7fb0c6",
+    accent: "#ffb347", gold: "#ffcf70", code: "#0b2230", "user-bg": "#1b4a63", "user-border": "#2f7ea3",
+    heading: "#ffffff", btn: "#194257", "pre-text": "#dff3fb", rail: "#2f7ea3", asst: "#6ee7c8",
+    tk: "#ff8a65", tc: "#6f9db3", ts: "#ffcf70", tn: "#c3a6ff", tt: "#6ee7c8"
+  }),
+  T("lavender-dream", "Lavender Dream", "Cute", {
+    bg: "#f6f1ff", panel: "#ebe2ff", border: "#d6c6ff", text: "#43345f", muted: "#9784bf",
+    accent: "#9b6dff", gold: "#d98a2b", code: "#fcfaff", "user-bg": "#e5d9ff", "user-border": "#c2a8ff",
+    heading: "#5a2fc2", btn: "#e3d7ff", "pre-text": "#43345f", rail: "#c2a8ff", asst: "#1fa39a",
+    tk: "#8a3ffc", tc: "#a799c7", ts: "#d6457a", tn: "#2a7de1", tt: "#1fa39a"
+  })
+];
+</script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+/* ---------- Themes (defined in themes.js) ---------- */
+const THEMES=window.THEMES||[{id:"eigen-dark",name:"Eigen Dark (default)",vars:{}}];
+const sel=$("theme");
+const groups={};
+for(const t of THEMES){const g=t.group||"Themes";(groups[g]=groups[g]||[]).push(t);}
+for(const g in groups){
+  const og=document.createElement("optgroup");og.label=g;
+  for(const t of groups[g]){const o=document.createElement("option");o.value=t.id;o.textContent=t.name;og.appendChild(o);}
+  sel.appendChild(og);
+}
+const base=getComputedStyle(document.documentElement);
+const allKeys=new Set();THEMES.forEach(t=>Object.keys(t.vars).forEach(k=>allKeys.add(k)));
+function applyTheme(id){
+  const t=THEMES.find(x=>x.id===id)||THEMES[0];
+  allKeys.forEach(k=>document.documentElement.style.removeProperty(k));
+  Object.entries(t.vars).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
+  sel.value=t.id;
+  try{localStorage.setItem("chatViewerTheme",t.id);}catch(e){}
+}
+sel.addEventListener("change",()=>applyTheme(sel.value));
+let saved=null;try{saved=localStorage.getItem("chatViewerTheme");}catch(e){}
+applyTheme(saved||THEMES[0].id);
+
+/* ---------- Parsing ---------- */
+const HDR=/^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\] (User|Assistant|Tool Call|Tool Result)(?:: ?(.*))?$/;
+
+function parse(text){
+  text=text.replace(/^\uFEFF/,"").replace(/\r\n?/g,"\n");
+  const lines=text.split("\n");
+  const meta={};let i=0,start=lines.findIndex(l=>/^Messages:\s*$/.test(l));
+  const headEnd=start>=0?start:lines.findIndex(l=>HDR.test(l));
+  for(const l of lines.slice(0,headEnd<0?lines.length:headEnd)){
+    const m=l.match(/^([A-Za-z][A-Za-z ]*?):\s*(.*)$/);
+    if(m&&m[2])meta[m[1]]=m[2];
+  }
+  i=start>=0?start+1:0;
+  if(lines[i]&&/^-{10,}$/.test(lines[i]))i++;
+  const msgs=[];let cur=null;
+  for(;i<lines.length;i++){
+    const m=lines[i].match(HDR);
+    if(m){
+      cur={ts:m[1],role:m[2],name:(m[3]||"").trim(),lines:[]};
+      msgs.push(cur);
+    }else if(cur)cur.lines.push(lines[i]);
+  }
+  for(const m of msgs)m.body=m.lines.join("\n").replace(/^\n+|\s+$/g,"");
+  return {meta,msgs};
+}
+
+/* ---------- SCL highlighting ---------- */
+const KW="IF|THEN|ELSE|ELSIF|END_IF|CASE|OF|END_CASE|FOR|TO|BY|DO|END_FOR|WHILE|END_WHILE|REPEAT|UNTIL|END_REPEAT|CONTINUE|EXIT|RETURN|GOTO|AND|OR|XOR|NOT|MOD|TRUE|FALSE|FUNCTION|FUNCTION_BLOCK|END_FUNCTION|END_FUNCTION_BLOCK|ORGANIZATION_BLOCK|END_ORGANIZATION_BLOCK|DATA_BLOCK|END_DATA_BLOCK|BEGIN|VAR|VAR_INPUT|VAR_OUTPUT|VAR_IN_OUT|VAR_TEMP|VAR_STATIC|VAR_CONSTANT|END_VAR|STRUCT|END_STRUCT|TYPE|END_TYPE|REGION|END_REGION|VERSION|ARRAY|Void";
+const TYPES="Bool|Byte|Word|DWord|LWord|Int|SInt|DInt|LInt|UInt|USInt|UDInt|ULInt|Real|LReal|Time|LTime|Date|Time_Of_Day|DTL|String|WString|Char|WChar|Variant|Struct";
+const HL=new RegExp("(\\/\\/[^\\n]*|\\(\\*[\\s\\S]*?\\*\\))|(\"[^\"\\n]*\"|'[^'\\n]*')|\\b(\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b|\\b("+KW+")\\b|\\b("+TYPES+")\\b","gi");
+function highlight(code,lang){
+  if(lang&&!/^(scl|st|pascal|stl|awl|iecst|)$/i.test(lang))return esc(code);
+  let out="",last=0,m;HL.lastIndex=0;
+  while((m=HL.exec(code))){
+    out+=esc(code.slice(last,m.index));
+    const cls=m[1]?"c":m[2]?"s":m[3]?"n":m[4]?"k":"t";
+    out+='<span class="'+cls+'">'+esc(m[0])+"</span>";
+    last=m.index+m[0].length;
+  }
+  return out+esc(code.slice(last));
+}
+
+/* ---------- Markdown ---------- */
+function inline(s){
+  const codes=[];
+  s=s.replace(/`([^`\n]+)`/g,(_,c)=>{codes.push(c);return "\u0000"+(codes.length-1)+"\u0000";});
+  s=esc(s);
+  s=s.replace(/\[([^\]\n]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s=s.replace(/\*\*([^*\n]+?)\*\*|__([^_\n]+?)__/g,(_,a,b)=>"<strong>"+(a||b)+"</strong>");
+  s=s.replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?!\w)/g,"$1<em>$2</em>");
+  s=s.replace(/~~([^~\n]+)~~/g,"<del>$1</del>");
+  return s.replace(/\u0000(\d+)\u0000/g,(_,n)=>"<code>"+esc(codes[+n])+"</code>");
+}
+function codeBlock(code,lang){
+  return '<div class="codeblock"><div class="bar"><span>'+esc(lang||"Code")+'</span><button class="copy">Copy</button></div><pre><code>'+highlight(code,lang)+"</code></pre></div>";
+}
+function cells(l){return l.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());}
+function markdown(src){
+  const L=src.split("\n");let h="",i=0;
+  const isBlockStart=l=>/^(#{1,6}\s|```|>\s?|\s*([-*+]|\d+[.)])\s|\s*([-*_]\s*){3,}$)/.test(l);
+  while(i<L.length){
+    let l=L[i];
+    if(!l.trim()){i++;continue;}
+    let m=l.match(/^\s*```+\s*([\w+-]*)/);
+    if(m){const buf=[];i++;while(i<L.length&&!/^\s*```+\s*$/.test(L[i]))buf.push(L[i++]);i++;h+=codeBlock(buf.join("\n"),m[1]);continue;}
+    if((m=l.match(/^(#{1,6})\s+(.*?)\s*#*$/))){h+="<h"+m[1].length+">"+inline(m[2])+"</h"+m[1].length+">";i++;continue;}
+    if(/^\s*([-*_]\s*){3,}$/.test(l)){h+="<hr>";i++;continue;}
+    if(/^\s*>/.test(l)){const buf=[];while(i<L.length&&/^\s*>/.test(L[i]))buf.push(L[i++].replace(/^\s*>\s?/,""));h+="<blockquote>"+markdown(buf.join("\n"))+"</blockquote>";continue;}
+    if(/^\s*\|.*\|\s*$/.test(l)&&i+1<L.length&&/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(L[i+1])){
+      const hd=cells(l);i+=2;const rows=[];
+      while(i<L.length&&/^\s*\|.*\|\s*$/.test(L[i]))rows.push(cells(L[i++]));
+      h+="<table><thead><tr>"+hd.map(c=>"<th>"+inline(c)+"</th>").join("")+"</tr></thead><tbody>"+rows.map(r=>"<tr>"+r.map(c=>"<td>"+inline(c)+"</td>").join("")+"</tr>").join("")+"</tbody></table>";
+      continue;
+    }
+    if((m=l.match(/^(\s*)([-*+]|\d+[.)])\s+/))){
+      const ordered=/\d/.test(m[2]);const base=m[1].length;const items=[];
+      while(i<L.length){
+        const mm=L[i].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+        if(mm&&mm[1].length<=base+1&&/\d/.test(mm[2])===ordered){items.push(mm[3]);i++;}
+        else if(mm&&mm[1].length>base+1){items[items.length-1]+="\n"+L[i].slice(base+2);i++;}
+        else if(L[i].trim()&&/^\s{2,}\S/.test(L[i])&&items.length){items[items.length-1]+="\n"+L[i].trim();i++;}
+        else if(!L[i].trim()&&i+1<L.length&&/^\s+([-*+]|\d+[.)])\s/.test(L[i+1])){i++;}
+        else break;
+      }
+      h+=(ordered?"<ol>":"<ul>")+items.map(t=>"<li>"+(/\n/.test(t)?markdown(t).replace(/^<p>([\s\S]*?)<\/p>/,"$1"):inline(t))+"</li>").join("")+(ordered?"</ol>":"</ul>");
+      continue;
+    }
+    const buf=[l];i++;
+    while(i<L.length&&L[i].trim()&&!isBlockStart(L[i])&&!/^\s*\|.*\|\s*$/.test(L[i]))buf.push(L[i++]);
+    h+="<p>"+inline(buf.join("\n")).replace(/\n/g,"<br>")+"</p>";
+  }
+  return h;
+}
+
+/* ---------- Rendering ---------- */
+function prettyJson(t){try{return JSON.stringify(JSON.parse(t),null,2);}catch(e){return t;}}
+function toolBlock(m){
+  const d=document.createElement("details");d.className="tool";
+  const sum=document.createElement("summary");
+  const label=m.role==="Tool Call"?"Tool call":"Tool result";
+  sum.innerHTML="<b>"+label+"</b> "+esc(m.name)+' <span style="opacity:.6">· '+m.ts.slice(11)+"</span>";
+  d.appendChild(sum);
+  let filled=false;
+  d.addEventListener("toggle",()=>{
+    if(!d.open||filled)return;filled=true;
+    let b=m.body.replace(/^Input:\s*/,"");
+    const pre=document.createElement("pre");
+    const LIM=200000;
+    pre.textContent=(m.role==="Tool Call"?prettyJson(b):b.length>LIM?b.slice(0,LIM)+"\n… ("+(b.length-LIM)+" more characters truncated)":b);
+    d.appendChild(pre);
+  });
+  return d;
+}
+function render(data,fileName){
+  const root=$("chat");root.innerHTML="";
+  const {meta,msgs}=data;
+  const title=meta["Chat Session"]||fileName;
+  $("title").textContent=title;document.title=title+" – Eigen Chat Viewer";
+  const mb=document.createElement("div");mb.className="meta";
+  mb.innerHTML="<h1>"+esc(title)+"</h1>"+Object.entries(meta).filter(([k])=>k!=="Chat Session").map(([k,v])=>"<div><span>"+esc(k)+"</span>"+esc(v)+"</div>").join("");
+  root.appendChild(mb);
+  let shown=0,grp=null;
+  const newGroup=m=>{
+    const d=document.createElement("div");d.className="msg assistant collapsed";
+    const ts=document.createElement("div");ts.className="ts";ts.textContent=m.ts;
+    const pv=document.createElement("span");pv.className="pv";ts.appendChild(pv);
+    ts.addEventListener("click",()=>d.classList.toggle("collapsed"));
+    const body=document.createElement("div");body.className="abody";
+    d.append(ts,body);root.appendChild(d);
+    return grp={d,pv,body,tools:null,nTools:0,hasText:false};
+  };
+  for(const m of msgs){
+    if(m.role==="User"){
+      grp=null;
+      if(!m.body)continue;
+      const d=document.createElement("div");d.className="msg user";
+      const ts=document.createElement("div");ts.className="ts";ts.textContent=m.ts;
+      const b=document.createElement("div");b.className="userText";b.textContent=m.body;
+      d.append(ts,b);root.appendChild(d);continue;
+    }
+    if(!grp)newGroup(m);
+    if(m.role==="Assistant"){
+      if(!m.body)continue;
+      grp.tools=null;
+      const b=document.createElement("div");b.className="md";b.innerHTML=markdown(m.body);
+      grp.body.appendChild(b);
+      if(!grp.hasText){grp.hasText=true;grp.pv.textContent="— "+m.body.replace(/```[\s\S]*?```/g," ").replace(/[#*`>|_-]+/g," ").replace(/\s+/g," ").trim().slice(0,160);}
+      shown++;continue;
+    }
+    if(!grp.tools){
+      const g=document.createElement("details");g.className="toolgroup";
+      g.innerHTML="<summary></summary><div class=\"inner\"></div>";
+      grp.body.appendChild(g);grp.tools=g;grp.nTools=0;
+    }
+    grp.tools.querySelector(".inner").appendChild(toolBlock(m));
+    if(m.role==="Tool Call")grp.nTools++;
+    grp.tools.querySelector("summary").innerHTML="<b>Tools</b> · "+grp.nTools+" call"+(grp.nTools===1?"":"s");
+  }
+  for(const g of root.querySelectorAll(".msg.assistant")){
+    const pv=g.querySelector(".pv");
+    if(!pv.textContent){const n=g.querySelectorAll(".toolgroup .tool").length;pv.textContent="— (tool activity only)";}
+  }
+  if(!msgs.length)root.insertAdjacentHTML("beforeend",'<div class="empty">No messages found. Is this an Eigen export?</div>');
+  $("drop").hidden=true;root.hidden=false;window.scrollTo(0,0);
+}
+function loadFile(f){
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>render(parse(String(r.result)),f.name.replace(/\.txt$/i,""));
+  r.readAsText(f,"utf-8");
+}
+
+/* ---------- Events ---------- */
+$("file").addEventListener("change",e=>{loadFile(e.target.files[0]);e.target.value="";});
+$("drop").addEventListener("click",()=>$("file").click());
+["dragover","dragenter"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();$("drop").classList.add("over");}));
+["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();$("drop").classList.remove("over");}));
+document.addEventListener("drop",e=>loadFile(e.dataTransfer.files[0]));
+$("showTools").addEventListener("change",e=>document.body.classList.toggle("hideTools",!e.target.checked));
+$("expandReplies").onclick=()=>document.querySelectorAll(".msg.assistant").forEach(d=>d.classList.remove("collapsed"));
+$("collapseReplies").onclick=()=>document.querySelectorAll(".msg.assistant").forEach(d=>d.classList.add("collapsed"));
+$("expand").onclick=()=>document.querySelectorAll("details.toolgroup,details.tool").forEach(d=>d.open=true);
+$("collapse").onclick=()=>document.querySelectorAll("details.toolgroup,details.tool").forEach(d=>d.open=false);
+document.addEventListener("click",e=>{
+  if(!e.target.classList.contains("copy"))return;
+  const code=e.target.closest(".codeblock").querySelector("code").textContent;
+  navigator.clipboard.writeText(code).then(()=>{e.target.textContent="Copied";setTimeout(()=>e.target.textContent="Copy",1200);});
+});
+})();
+</script>
+</body>
+</html>
