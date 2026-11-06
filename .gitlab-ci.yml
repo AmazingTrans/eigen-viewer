@@ -1,11 +1,10 @@
-# Optional: publishes the single-file viewer with GitLab Pages.
-# Remove this file if you do not want a hosted copy.
+# Publishes the single-file viewer with GitLab Pages (internal sharing).
 pages:
   stage: deploy
   image: alpine:latest
   script:
     - mkdir -p public
-    - cp dist/ChatViewer_Single.html public/index.html
+    - cp docs/index.html public/index.html
   artifacts:
     paths:
       - public
